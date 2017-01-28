@@ -32,6 +32,7 @@
 
     //Array of markers
     var markers = new Array();
+    var nullRecords = new Array();
 
     //Create a new Date object for the current date
     var currentDate = new Date();
@@ -108,6 +109,12 @@
             iconSize: [32, 32],
             iconAnchor: [16, 32]
         }),
+		    CITY_ARREST: L.divIcon({
+            className: 'map-pin red',
+            html: '<i class="fa fa-gavel"></i>',
+            iconSize: [32, 32],
+            iconAnchor: [16, 32]
+        }),
         CITY_311_ICON: L.divIcon({
             className: 'map-pin yellow',
             html: '<i class="fa fa-commenting"></i>',
@@ -119,7 +126,19 @@
             html: '<i class="fa fa-book"></i>',
             iconSize: [32, 32],
             iconAnchor: [16, 32]
-        })
+        }),
+        CODE_VIOLATION: L.divIcon({
+            className: 'map-pin green',
+            html: '<i class="fa fa-times-circle"></i>',
+            iconSize: [32, 32],
+            iconAnchor: [16, 32]
+        }),
+        HEALTHY_RIDE_ICON: L.divIcon({
+            className: 'map-pin blue',
+            html: '<i class="fa fa-bicycle"></i>',
+            iconSize: [32, 32],
+            iconAnchor: [16, 32]
+        }),
     };
 
     const WPRDC_DATA_SOURCES = {
@@ -139,6 +158,56 @@
                 record.incidentMonth = parseInt(record.INCIDENTTIME.substring(5,8));
                 record.incidentDay = parseInt(record.INCIDENTTIME.substring(8,10));
             }
+        },
+
+        "Arrest": {
+            id: 'e03a89dd-134a-4ee8-a2bd-62c40aeebc6f',
+            primaryFiltering: 'WHERE "INCIDENTNEIGHBORHOOD" LIKE \'%Oakland\'',
+            latLong: ['Y', 'X'],
+            icon: iconTypes.CITY_ARREST,
+
+            // TODO: Better title and popup messages?
+            title: (record) => record['OFFENSES'],
+            popup: (record) => record['OFFENSES'],
+
+            processRecord: (record) => {
+                // Collect time of incident from the record
+                record.incidentYear = parseInt(record.ARRESTTIME.substring(0,4));
+                record.incidentMonth = parseInt(record.ARRESTTIME.substring(5,8));
+                record.incidentDay = parseInt(record.ARRESTTIME.substring(8,10));
+            }
+        },
+
+        "Code Violation": {
+            id: '4e5374be-1a88-47f7-afee-6a79317019b4',
+            primaryFiltering: 'WHERE "NEIGHBORHOOD" LIKE \'%Oakland\'',
+            latLong: ['Y', 'X'],
+            icon: iconTypes.CODE_VIOLATION,
+
+            // TODO: Better title and popup messages?
+            title: (record) => record['VIOLATION'],
+            popup: (record) => `<strong>${record['VIOLATION']}:</strong>
+            ${record['LOCATION']}<br>
+            ${record['STREET_NUM']} ${record['STREET_NAME']}`,
+
+            processRecord: (record) => {
+                // Collect time of incident from the record
+                record.incidentYear = parseInt(record.INSPECTION_DATE.substring(0,4));
+                record.incidentMonth = parseInt(record.INSPECTION_DATE.substring(5,8));
+                record.incidentDay = parseInt(record.INSPECTION_DATE.substring(8,10));
+            }
+        },
+
+        //Healthy Ride Bike Station Data
+        "Healthy Ride Station": {
+            id: "74d7ae6d-6a94-4ed3-8dfe-8c1cdf0ff2fe",
+            latLong: ['Y', 'X'],
+            icon: iconTypes.HEALTHY_RIDE_ICON,
+
+            title: (record) => record['name'],
+            popup: (record) => `<strong>${record['name']}:</strong>
+            ${record['place uid']}<br>
+            ${record['lat']} ${record['lng']}`,
         },
 
         // City of Pittsburgh 311 data
@@ -166,7 +235,7 @@
         "Library": {
             id: "2ba0788a-2f35-43aa-a47c-89c75f55cf9d",
             primaryFiltering: 'WHERE "Name" LIKE \'%OAKLAND%\'',
-            latLong: ['Lat', 'Lon'],
+            latLong: ['Y', 'X'],
             icon: iconTypes.LIBRARY_ICON,
 
             title: (record) => record['Name'],
@@ -203,6 +272,7 @@
             // TODO: should have some generic error handling for data
             .catch((err) => displayNotification(err))
             .then((data) => {
+				console.log(dataSource.id, data);
                 const records = data.result.records;
 
                 records.forEach((record, i) => {
@@ -210,27 +280,32 @@
                         dataSource.processRecord(record, i);
                     }
 
-                    const recordLatLong = dataSource.latLong.map((fieldName) => record[fieldName]);
-                    const latLongNoNulls = recordLatLong.some((field) => !!field);
-                    const latLong = latLongNoNulls ? recordLatLong : cathyLatLong;
+                    const latLong = dataSource.latLong.map((fieldName) => record[fieldName]);
+                    const latLongNoNulls = latLong.some((field) => !!field);
+                    if (latLongNoNulls) {
+                        const title = dataSource.title(record);
+                        record.pin = L.marker(latLong, {
+                            title: title,
+                            icon: dataSource.icon
+                        });
 
-                    const title = dataSource.title(record);
-                    record.pin = L.marker(latLong, {
-                        title: title,
-                        icon: dataSource.icon
-                    });
+                        record.pin.bindPopup(dataSource.popup(record));
 
-                    record.pin.bindPopup(dataSource.popup(record));
-
-                    record.pin.addTo(map)
-                    markers.push(record);
+                        record.pin.addTo(map);
+                        markers.push(record);
+                    } else {
+                        nullRecords.push(record);
+                    }
                 })
             });
     }
 
     Promise.all([
-        fetchWPRDCData('Police', { limit: 250 }),
-        fetchWPRDCData('311', { limit: 250 }),
+        fetchWPRDCData('Police', { limit: 5 }),
+        fetchWPRDCData('311', { limit: 5 }),
+		    fetchWPRDCData('Arrest', { limit: 5 }),
+        fetchWPRDCData('Code Violation', { limit: 5 }),
+        fetchWPRDCData('Healthy Ride Station'),
         fetchWPRDCData('Library')
     ]).then(() => {
         console.log('All data loaded');
