@@ -109,7 +109,7 @@
             iconSize: [32, 32],
             iconAnchor: [16, 32]
         }),
-		    CITY_ARREST: L.divIcon({
+        CITY_ARREST: L.divIcon({
             className: 'map-pin red',
             html: '<i class="fa fa-gavel"></i>',
             iconSize: [32, 32],
@@ -201,7 +201,7 @@
         //Healthy Ride Bike Station Data
         "Healthy Ride Station": {
             id: "74d7ae6d-6a94-4ed3-8dfe-8c1cdf0ff2fe",
-            latLong: ['Y', 'X'],
+            latLong: ['lat', 'lng'],
             icon: iconTypes.HEALTHY_RIDE_ICON,
 
             title: (record) => record['name'],
